@@ -137,7 +137,8 @@ def FOREL(data, radius):
             if i in nearobjects:
                 currentcluster.append(data[i])
                 data.pop(i)
-        clusters.append(currentcluster)
+        if len(currentcluster) > 1:
+            clusters.append(currentcluster)
     return clusters
 
 
@@ -161,7 +162,8 @@ def FOREL_time(data, radius):
             if i in nearobjects:
                 currentcluster.append(data[i])
                 data.pop(i)
-        clusters.append(currentcluster)
+        if len(currentcluster) > 1:
+            clusters.append(currentcluster)
     return clusters
 
 
@@ -180,7 +182,6 @@ def main():
     geojson = GeoJSON()
     for cluster in hour_clusters:
         if len(cluster) > 5:
-            # users = len(set(map(lambda c: c.user, c[1])))
             geojson.add_point(cluster[0].get_center(), str(len(cluster)))
     print str(geojson)
 
