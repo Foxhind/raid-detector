@@ -72,7 +72,7 @@ def parse_args():
     path = os.path.dirname(os.path.realpath(__file__))
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--database', help='path to database file', default=path + '/raid-detector.sqlite')
+    parser.add_argument('-d', '--database', help='path to database file', default=path + '/detector.sqlite')
     parser.add_argument('-t', '--threads', help='number of download threads', default=2, type=int)
     args = parser.parse_args()
     return args
@@ -81,6 +81,7 @@ def parse_args():
 def load_config(database):
     cursor = database.cursor()
     cursor.executescript("""
+        PRAGMA auto_vacuum=FULL;
         CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY ASC, value BLOB);
         CREATE TABLE IF NOT EXISTS changesets(
             id INTEGER PRIMARY KEY ASC,
@@ -119,8 +120,14 @@ def save_changesets(changesets, database):
     database.commit()
 
 
+def remove_old_changesets(database):
+    database.execute('DELETE FROM changesets WHERE created_at < (SELECT MAX(created_at) FROM changesets) - 172800')
+    database.commit()
+
+
 def download(urls):
     pool = Pool(processes=args.threads)
+    # print('Download %s urls' % len(urls))
     changesets = pool.map(download_osc, urls)
     urllib.urlcleanup()
     changesets = list(chain(*changesets))
@@ -128,6 +135,7 @@ def download(urls):
 
 
 def download_osc(url):
+    # print('Download url %s' % url)
     filename, headers = urllib.urlretrieve(url)
     file = gzip.open(filename, 'r')
     changesets = parse_osc(file)
@@ -199,6 +207,7 @@ def main():
     missing_urls = get_missing_urls(sequence, server_sequence)
     changesets = download(missing_urls)
     save_changesets(changesets, database)
+    remove_old_changesets(database)
 
     config['server_sequence'] = server_sequence
     save_config(config, database)

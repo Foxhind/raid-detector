@@ -31,6 +31,11 @@ class GeoJSON:
         self.data['features'] = self.features
         return json.dumps(self.data)
 
+    def save(self, filename):
+        self.data['features'] = self.features
+        out = open(filename, 'w')
+        json.dump(self.data, out)
+
 
 class Changeset:
     id = 0
@@ -102,8 +107,8 @@ def parse_args():
     path = os.path.dirname(os.path.realpath(__file__))
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--database', help='path to database file', default=path + '/raid-detector.sqlite')
-    parser.add_argument('-t', '--threads', help='number of download threads', default=2, type=int)
+    parser.add_argument('-d', '--database', help='path to database file', default=path + '/detector.sqlite')
+    parser.add_argument('-o', '--out', help='output file', default=path + '/raids.geojson')
     args = parser.parse_args()
     return args
 
@@ -114,7 +119,7 @@ def load_changesets(database):
 
     database.row_factory = changeset_factory
     cursor = database.cursor()
-    cursor.execute('SELECT * FROM changesets')
+    cursor.execute('SELECT * FROM changesets WHERE created_at > (SELECT MAX(created_at) FROM changesets) - 7200')
     changesets = cursor.fetchall()
     cursor.close()
     return changesets
@@ -187,7 +192,7 @@ def filter_changesets(changeset):
 
 def is_raid(cluster):
     users = get_unique_users(cluster)
-    return len(users) > 2
+    return len(users) > 4
 
 
 def main():
@@ -206,7 +211,7 @@ def main():
     for cluster in hour_clusters:
         if is_raid(cluster):
             geojson.add_point(get_cluster_center(cluster), str(len(get_unique_users(cluster))) + '/' + str(len(cluster)))
-    print str(geojson)
+    geojson.save(args.out)
 
 
 if __name__ == '__main__':
