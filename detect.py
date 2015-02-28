@@ -86,6 +86,16 @@ class Changeset:
                 abs(self.max_lon - self.min_lon)) * 2
 
 
+def get_cluster_center(cluster):
+    summ = [0, 0]
+    mass = float(len(cluster))
+    for changeset in cluster:
+        center = changeset.get_center()
+        summ[0] += center[0]
+        summ[1] += center[1]
+    return (summ[0] / mass, summ[1] / mass)
+
+
 def parse_args():
     global args
 
@@ -108,6 +118,10 @@ def load_changesets(database):
     changesets = cursor.fetchall()
     cursor.close()
     return changesets
+
+
+def get_unique_users(cluster):
+    return set(map(lambda c: c.user, cluster))
 
 
 def distance(a, b):
@@ -167,22 +181,31 @@ def FOREL_time(data, radius):
     return clusters
 
 
+def filter_changesets(changeset):
+    return changeset.get_perimeter() < 0.1
+
+
+def is_raid(cluster):
+    users = get_unique_users(cluster)
+    return len(users) > 2
+
+
 def main():
     parse_args()
     database = sqlite3.connect(args.database)
-    changesets = load_changesets(database)
+    changesets = filter(filter_changesets, load_changesets(database))
 
     geo_clusters = FOREL(changesets, 0.1)
     hour_clusters = []
     day_clusters = []
     for geo_cluster in geo_clusters:
         hour_clusters.extend(FOREL_time(geo_cluster, 1800))
-        day_clusters.extend(FOREL_time(geo_cluster, 43200))
+        # day_clusters.extend(FOREL_time(geo_cluster, 43200))
 
     geojson = GeoJSON()
     for cluster in hour_clusters:
-        if len(cluster) > 5:
-            geojson.add_point(cluster[0].get_center(), str(len(cluster)))
+        if is_raid(cluster):
+            geojson.add_point(get_cluster_center(cluster), str(len(get_unique_users(cluster))) + '/' + str(len(cluster)))
     print str(geojson)
 
 
